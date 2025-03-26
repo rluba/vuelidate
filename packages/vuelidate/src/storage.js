@@ -45,7 +45,7 @@ export default class ResultsStorage {
    * Returns the matched result if catche is valid
    * @param {String} path
    * @param {Object<NormalizedValidator>} rules
-   * @return {{$partial: boolean, $dirty: Ref<Boolean>, $unwatch: function}|undefined|ValidationResult}
+   * @return {{$partial: boolean, $dirty: Ref<Boolean>, $changed: Ref<Boolean>, $unwatch: function}|undefined|ValidationResult}
    */
   get (path, rules) {
     const storedRuleResultPair = this.storage.get(path)
@@ -56,7 +56,7 @@ export default class ResultsStorage {
 
     const $unwatch = result.$unwatch ? result.$unwatch : () => ({})
 
-    if (!isValidCache) return { $dirty: result.$dirty, $partial: true, $unwatch }
+    if (!isValidCache) return { $dirty: result.$dirty, $changed: result.$changed, $partial: true, $unwatch }
     return result
   }
 }
