@@ -2,47 +2,6 @@
 
 var vueDemi = require('vue-demi');
 
-function ownKeys(object, enumerableOnly) {
-  var keys = Object.keys(object);
-
-  if (Object.getOwnPropertySymbols) {
-    var symbols = Object.getOwnPropertySymbols(object);
-    enumerableOnly && (symbols = symbols.filter(function (sym) {
-      return Object.getOwnPropertyDescriptor(object, sym).enumerable;
-    })), keys.push.apply(keys, symbols);
-  }
-
-  return keys;
-}
-
-function _objectSpread2(target) {
-  for (var i = 1; i < arguments.length; i++) {
-    var source = null != arguments[i] ? arguments[i] : {};
-    i % 2 ? ownKeys(Object(source), !0).forEach(function (key) {
-      _defineProperty(target, key, source[key]);
-    }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys(Object(source)).forEach(function (key) {
-      Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
-    });
-  }
-
-  return target;
-}
-
-function _defineProperty(obj, key, value) {
-  if (key in obj) {
-    Object.defineProperty(obj, key, {
-      value: value,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    });
-  } else {
-    obj[key] = value;
-  }
-
-  return obj;
-}
-
 function isFunction(val) {
   return typeof val === 'function';
 }
@@ -50,7 +9,9 @@ function isObject(o) {
   return o !== null && typeof o === 'object' && !Array.isArray(o);
 }
 function normalizeValidatorObject(validator) {
-  return isFunction(validator.$validator) ? _objectSpread2({}, validator) : {
+  return isFunction(validator.$validator) ? {
+    ...validator
+  } : {
     $validator: validator
   };
 }
@@ -69,7 +30,10 @@ function withParams($params, $validator) {
   if (!isObject($params)) throw new Error(`[@vuelidate/validators]: First parameter to "withParams" should be an object, provided ${typeof $params}`);
   if (!isObject($validator) && !isFunction($validator)) throw new Error(`[@vuelidate/validators]: Validator must be a function or object with $validator parameter`);
   const validatorObj = normalizeValidatorObject($validator);
-  validatorObj.$params = _objectSpread2(_objectSpread2({}, validatorObj.$params || {}), $params);
+  validatorObj.$params = {
+    ...(validatorObj.$params || {}),
+    ...$params
+  };
   return validatorObj;
 }
 
@@ -81,39 +45,31 @@ function withMessage($message, $validator) {
   return validatorObj;
 }
 
-function withAsync($validator) {
-  let $watchTargets = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+function withAsync($validator, $watchTargets = []) {
   const validatorObj = normalizeValidatorObject($validator);
-  return _objectSpread2(_objectSpread2({}, validatorObj), {}, {
+  return {
+    ...validatorObj,
     $async: true,
     $watchTargets
-  });
+  };
 }
 
 function forEach(validators) {
   return {
-    $validator(collection) {
-      for (var _len = arguments.length, others = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-        others[_key - 1] = arguments[_key];
-      }
-
+    $validator(collection, ...others) {
       return vueDemi.unref(collection).reduce((previous, collectionItem, index) => {
-        const collectionEntryResult = Object.entries(collectionItem).reduce((all, _ref) => {
-          let [property, $model] = _ref;
+        const collectionEntryResult = Object.entries(collectionItem).reduce((all, [property, $model]) => {
           const innerValidators = validators[property] || {};
-          const propertyResult = Object.entries(innerValidators).reduce((all, _ref2) => {
-            let [validatorName, currentValidator] = _ref2;
+          const propertyResult = Object.entries(innerValidators).reduce((all, [validatorName, currentValidator]) => {
             const validatorFunction = unwrapNormalizedValidator(currentValidator);
             const $response = validatorFunction.call(this, $model, collectionItem, index, ...others);
             const $valid = unwrapValidatorResponse($response);
             all.$data[validatorName] = $response;
             all.$data.$invalid = !$valid || !!all.$data.$invalid;
             all.$data.$error = all.$data.$invalid;
-
             if (!$valid) {
               let $message = currentValidator.$message || '';
               const $params = currentValidator.$params || {};
-
               if (typeof $message === 'function') {
                 $message = $message({
                   $pending: false,
@@ -123,7 +79,6 @@ function forEach(validators) {
                   $response
                 });
               }
-
               all.$errors.push({
                 $property: property,
                 $message,
@@ -134,7 +89,6 @@ function forEach(validators) {
                 $validator: validatorName
               });
             }
-
             return {
               $valid: all.$valid && $valid,
               $data: all.$data,
@@ -168,57 +122,41 @@ function forEach(validators) {
         $errors: []
       });
     },
-
-    $message: _ref3 => {
-      let {
-        $response
-      } = _ref3;
-      return $response ? $response.$errors.map(context => {
-        return Object.values(context).map(errors => errors.map(error => error.$message)).reduce((a, b) => a.concat(b), []);
-      }) : [];
-    }
+    $message: ({
+      $response
+    }) => $response ? $response.$errors.map(context => {
+      return Object.values(context).map(errors => errors.map(error => error.$message)).reduce((a, b) => a.concat(b), []);
+    }) : []
   };
 }
 
 const req = value => {
   value = vueDemi.unref(value);
   if (Array.isArray(value)) return !!value.length;
-
   if (value === undefined || value === null) {
     return false;
   }
-
   if (value === false) {
     return true;
   }
-
   if (value instanceof Date) {
     return !isNaN(value.getTime());
   }
-
   if (typeof value === 'object') {
     for (let _ in value) return true;
-
     return false;
   }
-
   return !!String(value).length;
 };
 const len = value => {
   value = vueDemi.unref(value);
   if (Array.isArray(value)) return value.length;
-
   if (typeof value === 'object') {
     return Object.keys(value).length;
   }
-
   return String(value).length;
 };
-function regex() {
-  for (var _len = arguments.length, expr = new Array(_len), _key = 0; _key < _len; _key++) {
-    expr[_key] = arguments[_key];
-  }
-
+function regex(...expr) {
   return value => {
     value = vueDemi.unref(value);
     return !req(value) || expr.every(reg => {
@@ -260,50 +198,39 @@ function ipAddress (value) {
   if (!req(value)) {
     return true;
   }
-
   if (typeof value !== 'string') {
     return false;
   }
-
   const nibbles = value.split('.');
   return nibbles.length === 4 && nibbles.every(nibbleValid);
 }
-
 const nibbleValid = nibble => {
   if (nibble.length > 3 || nibble.length === 0) {
     return false;
   }
-
   if (nibble[0] === '0' && nibble !== '0') {
     return false;
   }
-
   if (!nibble.match(/^\d+$/)) {
     return false;
   }
-
   const numeric = +nibble | 0;
   return numeric >= 0 && numeric <= 255;
 };
 
-function macAddress () {
-  let separator = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : ':';
+function macAddress (separator = ':') {
   return value => {
     separator = vueDemi.unref(separator);
-
     if (!req(value)) {
       return true;
     }
-
     if (typeof value !== 'string') {
       return false;
     }
-
     const parts = typeof separator === 'string' && separator !== '' ? value.split(separator) : value.length === 12 || value.length === 16 ? value.match(/.{2}/g) : null;
     return parts !== null && (parts.length === 6 || parts.length === 8) && parts.every(hexValid);
   };
 }
-
 const hexValid = hex => hex.toLowerCase().match(/^[0-9a-f]{2}$/);
 
 function maxLength (length) {
@@ -318,31 +245,26 @@ function required (value) {
   if (typeof value === 'string') {
     value = value.trim();
   }
-
   return req(value);
 }
 
 const validate$1 = (prop, val) => prop ? req(typeof val === 'string' ? val.trim() : val) : true;
-
 function requiredIf(propOrFunction) {
   return function (value, parentVM) {
     if (typeof propOrFunction !== 'function') {
       return validate$1(vueDemi.unref(propOrFunction), value);
     }
-
     const result = propOrFunction.call(this, value, parentVM);
     return validate$1(result, value);
   };
 }
 
 const validate = (prop, val) => !prop ? req(typeof val === 'string' ? val.trim() : val) : true;
-
 function requiredUnless(propOrFunction) {
   return function (value, parentVM) {
     if (typeof propOrFunction !== 'function') {
       return validate(vueDemi.unref(propOrFunction), value);
     }
-
     const result = propOrFunction.call(this, value, parentVM);
     return validate(result, value);
   };
@@ -356,24 +278,15 @@ const urlRegex = /^(?:(?:(?:https?|ftp):)?\/\/)(?:\S+(?::\S*)?@)?(?:(?!(?:10|127
 var url = regex(urlRegex);
 
 function syncOr(validators) {
-  return function () {
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
+  return function (...args) {
     return validators.reduce((valid, fn) => {
       if (unwrapValidatorResponse(valid)) return valid;
       return unwrapNormalizedValidator(fn).apply(this, args);
     }, false);
   };
 }
-
 function asyncOr(validators) {
-  return function () {
-    for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-      args[_key2] = arguments[_key2];
-    }
-
+  return function (...args) {
     return validators.reduce(async (valid, fn) => {
       const r = await valid;
       if (unwrapValidatorResponse(r)) return r;
@@ -381,20 +294,13 @@ function asyncOr(validators) {
     }, Promise.resolve(false));
   };
 }
-
-function or() {
-  for (var _len3 = arguments.length, validators = new Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
-    validators[_key3] = arguments[_key3];
-  }
-
+function or(...validators) {
   const $async = validators.some(v => v.$async);
   const $watchTargets = validators.reduce((all, v) => {
     if (!v.$watchTargets) return all;
     return all.concat(v.$watchTargets);
   }, []);
-
   let $validator = () => false;
-
   if (validators.length) $validator = $async ? asyncOr(validators) : syncOr(validators);
   return {
     $async,
@@ -404,24 +310,15 @@ function or() {
 }
 
 function syncAnd(validators) {
-  return function () {
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
+  return function (...args) {
     return validators.reduce((valid, fn) => {
       if (!unwrapValidatorResponse(valid)) return valid;
       return unwrapNormalizedValidator(fn).apply(this, args);
     }, true);
   };
 }
-
 function asyncAnd(validators) {
-  return function () {
-    for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-      args[_key2] = arguments[_key2];
-    }
-
+  return function (...args) {
     return validators.reduce(async (valid, fn) => {
       const r = await valid;
       if (!unwrapValidatorResponse(r)) return r;
@@ -429,20 +326,13 @@ function asyncAnd(validators) {
     }, Promise.resolve(true));
   };
 }
-
-function and() {
-  for (var _len3 = arguments.length, validators = new Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
-    validators[_key3] = arguments[_key3];
-  }
-
+function and(...validators) {
   const $async = validators.some(v => v.$async);
   const $watchTargets = validators.reduce((all, v) => {
     if (!v.$watchTargets) return all;
     return all.concat(v.$watchTargets);
   }, []);
-
   let $validator = () => false;
-
   if (validators.length) $validator = $async ? asyncAnd(validators) : syncAnd(validators);
   return {
     $async,

@@ -176,6 +176,7 @@ export interface GlobalConfig {
   $scope?: string | number | symbol | boolean
   $stopPropagation?: boolean
   $autoDirty?: boolean
+  $autoDirtyDepth?: number
   $lazy?: boolean,
   $externalResults?: ServerErrors | Ref<ServerErrors> | UnwrapRef<ServerErrors>,
   $rewardEarly?: boolean,
