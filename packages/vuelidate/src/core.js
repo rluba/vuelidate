@@ -519,7 +519,7 @@ export function setValidations ({
       if (external) {
         external[key] = cachedExternalResults[key]
       }
-    }, { flush: 'sync' })
+    }, { flush: 'sync', deep: mergedConfig.$autoDirtyDepth ?? false })
   }
 
   /**
