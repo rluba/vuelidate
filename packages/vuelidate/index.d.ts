@@ -101,12 +101,14 @@ export type BaseValidation <
   $model: T
   // const validationGetters
   readonly $dirty: boolean
+  readonly $changed: boolean
   readonly $error: boolean
   readonly $errors: ErrorObject[]
   readonly $silentErrors: ErrorObject[]
   readonly $externalResults: ({ $validator: '$externalResults', $response: null, $pending: false, $params: {} } & ErrorObject)[]
   readonly $invalid: boolean
   readonly $anyDirty: boolean
+  readonly $anyChanged: boolean
   readonly $pending: boolean
   readonly $path: string
 

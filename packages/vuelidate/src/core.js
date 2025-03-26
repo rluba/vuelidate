@@ -42,6 +42,7 @@ const ROOT_PATH = '__root'
  * @typedef ValidationResult
  * @property {Ref<Boolean>} $pending
  * @property {Ref<Boolean>} $dirty
+ * @property {Ref<Boolean>} $changed
  * @property {Ref<Boolean>} $invalid
  * @property {Ref<Boolean>} $error
  * @property {Ref<String>} $path
@@ -72,6 +73,7 @@ function createValidationResults (rules, model, key, resultsCache, path, config,
 
   const cachedResult = resultsCache.get(path, rules)
   const $dirty = ref(false)
+  const $changed = ref(false)
   // state for the $rewardEarly option
   /** The last invalid state of this property */
   const $lastInvalidState = ref(false)
@@ -85,14 +87,16 @@ function createValidationResults (rules, model, key, resultsCache, path, config,
     cachedResult.$unwatch()
     // use the `$dirty.value`, so we dont save references by accident
     $dirty.value = cachedResult.$dirty.value
+    $changed.value = cachedResult.$changed.value
   }
 
   const result = {
     // restore $dirty from cache
     $dirty,
+    $changed,
     $path: path,
-    $touch: () => { if (!$dirty.value) $dirty.value = true },
-    $reset: () => { if ($dirty.value) $dirty.value = false },
+    $touch: () => { $dirty.value = true },
+    $reset: () => { $dirty.value = false; $changed.value = false; },
     $commit: () => {}
   }
 
@@ -227,7 +231,7 @@ function collectNestedValidationResults (validations, nestedState, path, results
  * @param {ValidationResult|{}} results
  * @param {Object.<string, VuelidateState>} nestedResults
  * @param {Object.<string, ValidationResult>} childResults
- * @return {{$anyDirty: Ref<Boolean>, $error: Ref<Boolean>, $invalid: Ref<Boolean>, $errors: Ref<ErrorObject[]>, $dirty: Ref<Boolean>, $touch: Function, $reset: Function }}
+ * @return {{$anyDirty: Ref<Boolean>, $anyChanged: Ref<Boolean>, $error: Ref<Boolean>, $invalid: Ref<Boolean>, $errors: Ref<ErrorObject[]>, $dirty: Ref<Boolean>, $changed: Ref<Boolean>, $touch: Function, $reset: Function }}
  */
 function createMetaFields (results, nestedResults, childResults) {
   const allResults = computed(() => [nestedResults, childResults]
@@ -245,6 +249,17 @@ function createMetaFields (results, nestedResults, childResults) {
     },
     set (v) {
       results.$dirty.value = v
+    }
+  })
+
+  // returns `$changed` as true, if all children are changed
+  const $changed = computed({
+    get () {
+      return results.$changed.value ||
+        (allResults.value.length ? allResults.value.every(r => r.$changed) : false)
+    },
+    set (v) {
+      results.$changed.value = v
     }
   })
 
@@ -302,6 +317,12 @@ function createMetaFields (results, nestedResults, childResults) {
     $dirty.value
   )
 
+  const $anyChanged = computed(() =>
+    allResults.value.some(r => r.$changed) ||
+    allResults.value.some(r => r.$anyChanged) ||
+    $changed.value
+  )
+
   const $error = computed(() => $dirty.value ? $pending.value || $invalid.value : false)
 
   const $touch = () => {
@@ -323,9 +344,9 @@ function createMetaFields (results, nestedResults, childResults) {
   }
 
   const $reset = () => {
-    // reset the root $dirty state
+    // reset the root $dirty and $changed state
     results.$reset()
-    // reset all the children $dirty states
+    // reset all the children $dirty and $changed states
     allResults.value.forEach((result) => {
       result.$reset()
     })
@@ -333,12 +354,15 @@ function createMetaFields (results, nestedResults, childResults) {
 
   // Ensure that if all child and nested results are $dirty, this also becomes $dirty
   if (allResults.value.length && allResults.value.every(nr => nr.$dirty)) $touch()
+  if (allResults.value.length && allResults.value.every(nr => nr.$changed)) results.$changed.value = true
 
   return {
     $dirty,
+    $changed,
     $errors,
     $invalid,
     $anyDirty,
+    $anyChanged,
     $error,
     $pending,
     $touch,
@@ -352,10 +376,12 @@ function createMetaFields (results, nestedResults, childResults) {
  * @typedef VuelidateState
  * @property {WritableComputedRef<any>} $model
  * @property {ComputedRef<Boolean>} $dirty
+ * @property {ComputedRef<Boolean>} $changed
  * @property {ComputedRef<Boolean>} $error
  * @property {ComputedRef<ErrorObject[]>} $errors
  * @property {ComputedRef<Boolean>} $invalid
  * @property {ComputedRef<Boolean>} $anyDirty
+ * @property {ComputedRef<Boolean>} $anyChanged
  * @property {ComputedRef<Boolean>} $pending
  * @property {Function} $touch
  * @property {Function} $reset
@@ -443,9 +469,11 @@ export function setValidations ({
   // with all nested validation results
   const {
     $dirty,
+    $changed,
     $errors,
     $invalid,
     $anyDirty,
+    $anyChanged,
     $error,
     $pending,
     $touch,
@@ -469,8 +497,14 @@ export function setValidations ({
           external[key] = cachedExternalResults[key]
         }
         if (isRef(s[key])) {
+          if (s[key].value != val) {
+            $changed.value = true
+          }
           s[key].value = val
         } else {
+          if (s[key] != val) {
+            $changed.value = true;
+          }
           s[key] = val
         }
       }
@@ -479,7 +513,8 @@ export function setValidations ({
 
   if (key && mergedConfig.$autoDirty) {
     watch(nestedState, () => {
-      if (!$dirty.value) $touch()
+      $touch()
+      $changed.value = true
       const external = unwrap(externalResults)
       if (external) {
         external[key] = cachedExternalResults[key]
@@ -542,10 +577,12 @@ export function setValidations ({
     // that includes the results of nested state validation results
     $model,
     $dirty,
+    $changed,
     $error,
     $errors,
     $invalid,
     $anyDirty,
+    $anyChanged,
     $pending,
     $touch,
     $reset,
