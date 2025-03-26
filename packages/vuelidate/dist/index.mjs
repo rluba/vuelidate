@@ -543,6 +543,7 @@ class ResultsStorage {
     const $unwatch = result.$unwatch ? result.$unwatch : () => ({});
     if (!isValidCache) return {
       $dirty: result.$dirty,
+      $changed: result.$changed,
       $partial: true,
       $unwatch
     };
